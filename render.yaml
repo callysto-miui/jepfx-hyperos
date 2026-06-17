@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: hyperos-unlocker
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn -w 1 -b 0.0.0.0:10000 app:app"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: FLASK_SECRET_KEY
+        generateValue: true
