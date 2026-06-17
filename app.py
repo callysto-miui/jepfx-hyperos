@@ -23,8 +23,9 @@ from miunlock_aes import aes_cbc_encrypt, aes_cbc_decrypt
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
-app.secret_key = 'hyperos-unlocker-secret-key-change-this'
+import os
+app = Flask(__name__, template_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates'))
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'hyperos-unlocker-secret-key-change-this')
 CORS(app)
 
 # Global state
@@ -450,7 +451,11 @@ def get_xiaomi_login_url():
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    try:
+        return render_template('index.html')
+    except:
+        # Fallback: serve embedded HTML if template not found
+        return serve_fallback_html()
 
 @app.route('/api/get-login-url')
 def get_login_url():
@@ -619,6 +624,309 @@ def get_logs():
 def clear_logs():
     unlock_state['logs'] = []
     return jsonify({'message': 'Logs cleared'})
+
+
+
+def serve_fallback_html():
+    """Serve HTML directly without template file - foolproof for Render"""
+    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HyperOS Bootloader Unlocker</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #e0e0e0; min-height: 100vh; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 30px; padding: 20px; }
+        .header h1 { font-size: 2.5em; color: #ff6b6b; margin-bottom: 10px; text-shadow: 0 0 20px rgba(255, 107, 107, 0.3); }
+        .header p { color: #a0a0a0; font-size: 1.1em; }
+        .card { background: rgba(255, 255, 255, 0.05); border-radius: 15px; padding: 25px; margin-bottom: 20px; border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); }
+        .card h2 { color: #4ecdc4; margin-bottom: 15px; font-size: 1.3em; }
+        .login-tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .login-tab { flex: 1; padding: 12px; background: rgba(255, 255, 255, 0.05); border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: #e0e0e0; cursor: pointer; transition: all 0.3s; text-align: center; font-weight: 600; }
+        .login-tab:hover { background: rgba(255, 255, 255, 0.1); }
+        .login-tab.active { border-color: #4ecdc4; background: rgba(78, 205, 196, 0.1); color: #4ecdc4; }
+        .login-panel { display: none; }
+        .login-panel.active { display: block; }
+        .input-group { margin-bottom: 15px; }
+        .input-group label { display: block; margin-bottom: 8px; color: #b0b0b0; font-weight: 500; }
+        .input-group input, .input-group textarea { width: 100%; padding: 12px 15px; border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 8px; background: rgba(0, 0, 0, 0.3); color: #fff; font-size: 1em; transition: all 0.3s; }
+        .input-group input:focus, .input-group textarea:focus { outline: none; border-color: #4ecdc4; box-shadow: 0 0 15px rgba(78, 205, 196, 0.2); }
+        .input-group textarea { resize: vertical; min-height: 80px; font-family: monospace; }
+        .btn { padding: 12px 30px; border: none; border-radius: 8px; font-size: 1em; font-weight: 600; cursor: pointer; transition: all 0.3s; margin-right: 10px; margin-bottom: 10px; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-start { background: linear-gradient(135deg, #ff6b6b, #ee5a5a); color: white; }
+        .btn-start:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(255, 107, 107, 0.4); }
+        .btn-start:disabled { background: #555; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn-stop { background: linear-gradient(135deg, #ffd93d, #f9ca24); color: #1a1a2e; }
+        .btn-stop:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(255, 217, 61, 0.4); }
+        .btn-login { background: linear-gradient(135deg, #4ecdc4, #44a08d); color: white; }
+        .btn-login:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(78, 205, 196, 0.4); }
+        .btn-verify { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+        .btn-verify:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
+        .btn-help { background: rgba(255, 255, 255, 0.1); color: #e0e0e0; }
+        .btn-help:hover { background: rgba(255, 255, 255, 0.2); }
+        .status-badge { display: inline-block; padding: 5px 15px; border-radius: 20px; font-size: 0.9em; font-weight: 600; margin-bottom: 15px; }
+        .status-idle { background: rgba(160, 160, 160, 0.2); color: #a0a0a0; }
+        .status-running { background: rgba(78, 205, 196, 0.2); color: #4ecdc4; }
+        .status-success { background: rgba(107, 255, 107, 0.2); color: #6bff6b; }
+        .status-error { background: rgba(255, 107, 107, 0.2); color: #ff6b6b; }
+        .status-warning { background: rgba(255, 217, 61, 0.2); color: #ffd93d; }
+        .countdown { font-size: 2em; text-align: center; color: #4ecdc4; margin: 20px 0; font-family: 'Courier New', monospace; }
+        .countdown-label { text-align: center; color: #a0a0a0; font-size: 0.9em; }
+        .logs-container { background: rgba(0, 0, 0, 0.4); border-radius: 10px; padding: 15px; max-height: 400px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.9em; }
+        .log-entry { padding: 5px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+        .log-time { color: #666; margin-right: 10px; }
+        .log-info { color: #e0e0e0; }
+        .log-success { color: #6bff6b; }
+        .log-error { color: #ff6b6b; }
+        .log-warning { color: #ffd93d; }
+        .result-box { background: rgba(78, 205, 196, 0.1); border: 2px solid #4ecdc4; border-radius: 10px; padding: 20px; margin-top: 20px; text-align: center; }
+        .result-box h3 { color: #4ecdc4; margin-bottom: 10px; }
+        .result-box p { font-size: 1.2em; color: #e0e0e0; }
+        .token-display { background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(78, 205, 196, 0.3); border-radius: 8px; padding: 15px; margin: 15px 0; word-break: break-all; font-family: monospace; font-size: 0.85em; color: #4ecdc4; }
+        .user-info { background: rgba(78, 205, 196, 0.05); border: 1px solid rgba(78, 205, 196, 0.2); border-radius: 8px; padding: 15px; margin: 15px 0; }
+        .user-info h4 { color: #4ecdc4; margin-bottom: 10px; }
+        .user-info-item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+        .user-info-item:last-child { border-bottom: none; }
+        .user-info-label { color: #a0a0a0; }
+        .user-info-value { color: #e0e0e0; font-weight: 600; }
+        .alert { padding: 12px 15px; border-radius: 8px; margin-bottom: 15px; display: none; }
+        .alert-success { background: rgba(107, 255, 107, 0.1); border: 1px solid rgba(107, 255, 107, 0.3); color: #6bff6b; }
+        .alert-error { background: rgba(255, 107, 107, 0.1); border: 1px solid rgba(255, 107, 107, 0.3); color: #ff6b6b; }
+        .alert-warning { background: rgba(255, 217, 61, 0.1); border: 1px solid rgba(255, 217, 61, 0.3); color: #ffd93d; }
+        .alert-info { background: rgba(78, 205, 196, 0.1); border: 1px solid rgba(78, 205, 196, 0.3); color: #4ecdc4; }
+        .alert.show { display: block; }
+        .progress-bar { width: 100%; height: 8px; background: rgba(255, 255, 255, 0.1); border-radius: 4px; overflow: hidden; margin: 15px 0; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #4ecdc4, #ff6b6b); transition: width 0.3s; width: 0%; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: #1a1a2e; border-radius: 15px; padding: 30px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.1); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .modal-header h2 { color: #4ecdc4; }
+        .close-btn { background: none; border: none; color: #e0e0e0; font-size: 1.5em; cursor: pointer; }
+        .steps-list { list-style: none; }
+        .steps-list li { padding: 10px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1); color: #b0b0b0; }
+        .steps-list li strong { color: #4ecdc4; }
+        .steps-list li code { background: rgba(0, 0, 0, 0.3); padding: 2px 6px; border-radius: 4px; color: #ffd93d; }
+        @media (max-width: 600px) { .header h1 { font-size: 1.8em; } .countdown { font-size: 1.5em; } .login-tabs { flex-direction: column; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔓 HyperOS Bootloader Unlocker</h1>
+            <p>Automated bootloader unlock request with auto-login</p>
+        </div>
+        <div class="card">
+            <h2>🔐 Authentication</h2>
+            <div class="login-tabs">
+                <div class="login-tab active" onclick="switchTab('auto')">🌐 Auto Login</div>
+                <div class="login-tab" onclick="switchTab('manual')">⌨️ Manual Token</div>
+            </div>
+            <div class="login-panel active" id="auto-panel">
+                <p style="color: #a0a0a0; margin-bottom: 15px;">Click the button below to open Xiaomi login. After logging in, copy the callback URL or cookie and paste it here.</p>
+                <button class="btn btn-login" onclick="openXiaomiLogin()">🌐 Open Xiaomi Login Page</button>
+                <div class="input-group" style="margin-top: 15px;">
+                    <label>Paste Callback URL or Cookie here:</label>
+                    <textarea id="auto-cookie-input" placeholder="Paste the full callback URL after login, or paste the cookie string with new_bbs_serviceToken..."></textarea>
+                </div>
+                <button class="btn btn-verify" onclick="extractToken()">🔍 Extract Token</button>
+                <div id="extract-alert" class="alert"></div>
+                <div id="token-display" class="token-display" style="display: none;">
+                    <strong>Extracted Token:</strong><br><span id="extracted-token"></span>
+                </div>
+            </div>
+            <div class="login-panel" id="manual-panel">
+                <div class="input-group">
+                    <label>Cookie: new_bbs_serviceToken</label>
+                    <textarea id="manual-cookie-input" placeholder="Paste your new_bbs_serviceToken cookie value here..."></textarea>
+                </div>
+            </div>
+            <div id="user-info" class="user-info" style="display: none;">
+                <h4>👤 Account Status</h4>
+                <div id="user-info-content"></div>
+            </div>
+            <button class="btn btn-verify" onclick="verifyToken()">✅ Verify Token & Check Status</button>
+            <div id="verify-alert" class="alert"></div>
+        </div>
+        <div class="card">
+            <h2>⚙️ Configuration</h2>
+            <div class="input-group">
+                <label for="phaseShift">Phase Shift (ms) - Advanced</label>
+                <input type="number" id="phaseShift" value="1400" min="0" max="5000">
+                <small style="color: #666;">Time offset before Beijing midnight to start requests</small>
+            </div>
+            <div style="margin-top: 20px;">
+                <button class="btn btn-start" id="startBtn" onclick="startUnlock()">🚀 Start Unlock Process</button>
+                <button class="btn btn-stop" id="stopBtn" onclick="stopUnlock()" disabled>⏹️ Stop</button>
+                <button class="btn btn-help" onclick="showHelp()">❓ How to use</button>
+            </div>
+        </div>
+        <div class="card" id="statusCard" style="display: none;">
+            <h2>📊 Status</h2>
+            <div id="statusBadge" class="status-badge status-idle">Idle</div>
+            <div class="countdown-label">Time until next Beijing midnight:</div>
+            <div class="countdown" id="countdown">00:00:00</div>
+            <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+            <div id="resultBox" class="result-box" style="display: none;">
+                <h3>🎉 Result</h3>
+                <p id="resultText"></p>
+            </div>
+        </div>
+        <div class="card">
+            <h2>📝 Logs</h2>
+            <div class="logs-container" id="logsContainer">
+                <div class="log-entry"><span class="log-time">--:--:--</span><span class="log-info">Waiting to start...</span></div>
+            </div>
+            <button class="btn btn-help" onclick="clearLogs()" style="margin-top: 10px;">🗑️ Clear Logs</button>
+        </div>
+    </div>
+    <div class="modal" id="helpModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>How to use Auto Login</h2>
+                <button class="close-btn" onclick="closeHelp()">&times;</button>
+            </div>
+            <ol class="steps-list">
+                <li><strong>1.</strong> Click <strong>"Open Xiaomi Login Page"</strong> button</li>
+                <li><strong>2.</strong> Login with your Xiaomi account in the new tab</li>
+                <li><strong>3.</strong> After login, you'll be redirected to a callback URL</li>
+                <li><strong>4.</strong> <strong>Copy the entire URL</strong> from the address bar</li>
+                <li><strong>5.</strong> Paste it in the text box and click <strong>"Extract Token"</strong></li>
+                <li><strong>6.</strong> Click <strong>"Verify Token"</strong> to check account status</li>
+                <li><strong>7.</strong> Click <strong>"Start Unlock Process"</strong> and wait</li>
+            </ol>
+            <div style="margin-top: 20px; padding: 15px; background: rgba(255, 107, 107, 0.1); border-radius: 8px; border: 1px solid rgba(255, 107, 107, 0.3);">
+                <strong style="color: #ff6b6b;">⚠️ Alternative Method:</strong><br>
+                If auto-extraction fails, manually copy the <code>new_bbs_serviceToken</code> cookie value from browser DevTools (Application → Cookies) and paste it in the Manual Token tab.
+            </div>
+        </div>
+    </div>
+    <script>
+        let statusInterval, countdownInterval, isRunning = false, currentToken = '', currentTab = 'auto';
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.login-panel').forEach(p => p.classList.remove('active'));
+            if (tab === 'auto') { document.querySelectorAll('.login-tab')[0].classList.add('active'); document.getElementById('auto-panel').classList.add('active'); }
+            else { document.querySelectorAll('.login-tab')[1].classList.add('active'); document.getElementById('manual-panel').classList.add('active'); }
+        }
+        function getCookieInput() { return currentTab === 'auto' ? document.getElementById('auto-cookie-input').value.trim() : document.getElementById('manual-cookie-input').value.trim(); }
+        function setCookieInput(value) { if (currentTab === 'auto') document.getElementById('auto-cookie-input').value = value; else document.getElementById('manual-cookie-input').value = value; }
+        async function openXiaomiLogin() {
+            try { const response = await fetch('/api/get-login-url'); const data = await response.json(); if (data.login_url) window.open(data.login_url, '_blank', 'width=800,height=600'); }
+            catch (e) { showAlert('extract-alert', 'error', 'Failed to get login URL: ' + e.message); }
+        }
+        async function extractToken() {
+            const input = getCookieInput();
+            if (!input) { showAlert('extract-alert', 'error', 'Please paste the callback URL or cookie first!'); return; }
+            try {
+                const response = await fetch('/api/extract-token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: input, cookie: input }) });
+                const data = await response.json();
+                if (data.success) {
+                    currentToken = data.token || data.code;
+                    showAlert('extract-alert', 'success', data.message);
+                    if (data.token) { document.getElementById('token-display').style.display = 'block'; document.getElementById('extracted-token').textContent = data.token; setCookieInput(data.token); }
+                } else { showAlert('extract-alert', 'error', data.message); document.getElementById('token-display').style.display = 'none'; }
+            } catch (e) { showAlert('extract-alert', 'error', 'Error: ' + e.message); }
+        }
+        async function verifyToken() {
+            const token = getCookieInput();
+            if (!token) { showAlert('verify-alert', 'error', 'Please enter or extract a token first!'); return; }
+            showAlert('verify-alert', 'info', 'Verifying token...');
+            try {
+                const response = await fetch('/api/verify-token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: token }) });
+                const data = await response.json();
+                if (data.valid) { showAlert('verify-alert', 'success', data.message); currentToken = token; if (data.user_info) displayUserInfo(data.user_info); }
+                else { showAlert('verify-alert', 'error', data.message); }
+            } catch (e) { showAlert('verify-alert', 'error', 'Error: ' + e.message); }
+        }
+        function displayUserInfo(info) {
+            const container = document.getElementById('user-info');
+            const content = document.getElementById('user-info-content');
+            const stateMap = { 1: 'Approved', 4: 'Pending' };
+            const buttonMap = { 1: 'Ready', 2: 'Blocked', 3: 'New Account' };
+            content.innerHTML = `
+                <div class="user-info-item"><span class="user-info-label">Status:</span><span class="user-info-value">${stateMap[info.is_pass] || 'Unknown'}</span></div>
+                <div class="user-info-item"><span class="user-info-label">Button State:</span><span class="user-info-value">${buttonMap[info.button_state] || 'Unknown'}</span></div>
+                ${info.deadline_format ? `<div class="user-info-item"><span class="user-info-label">Deadline:</span><span class="user-info-value">${info.deadline_format}</span></div>` : ''}
+            `;
+            container.style.display = 'block';
+        }
+        async function startUnlock() {
+            const token = currentToken || getCookieInput();
+            const phaseShift = document.getElementById('phaseShift').value;
+            if (!token) { alert('Please verify a token first!'); return; }
+            try {
+                const response = await fetch('/api/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cookie: token, feed_time_shift: parseInt(phaseShift) }) });
+                if (response.ok) {
+                    isRunning = true;
+                    document.getElementById('startBtn').disabled = true;
+                    document.getElementById('stopBtn').disabled = false;
+                    document.getElementById('statusCard').style.display = 'block';
+                    updateStatus(); statusInterval = setInterval(updateStatus, 1000); startCountdown();
+                } else { const data = await response.json(); alert(data.error || 'Failed to start'); }
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+        async function stopUnlock() {
+            try { await fetch('/api/stop', { method: 'POST' }); isRunning = false; document.getElementById('startBtn').disabled = false; document.getElementById('stopBtn').disabled = true; clearInterval(statusInterval); clearInterval(countdownInterval); }
+            catch (e) { console.error(e); }
+        }
+        async function clearLogs() {
+            try { await fetch('/api/clear-logs', { method: 'POST' }); document.getElementById('logsContainer').innerHTML = '<div class="log-entry"><span class="log-time">--:--:--</span><span class="log-info">Logs cleared...</span></div>'; }
+            catch (e) { console.error(e); }
+        }
+        async function updateStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                updateLogs(data.logs); updateStatusBadge(data.status);
+                if (data.target_time) document.getElementById('countdown').dataset.targetTime = data.target_time;
+                if (data.result) { document.getElementById('resultBox').style.display = 'block'; document.getElementById('resultText').textContent = data.result; }
+                if (!data.running && isRunning) { isRunning = false; document.getElementById('startBtn').disabled = false; document.getElementById('stopBtn').disabled = true; clearInterval(statusInterval); clearInterval(countdownInterval); }
+            } catch (e) { console.error(e); }
+        }
+        function updateLogs(logs) {
+            const container = document.getElementById('logsContainer');
+            container.innerHTML = logs.map(log => `<div class="log-entry"><span class="log-time">${log.time}</span><span class="log-${log.level}">${log.message}</span></div>`).join('');
+            container.scrollTop = container.scrollHeight;
+        }
+        function updateStatusBadge(status) {
+            const badge = document.getElementById('statusBadge');
+            const statusMap = { 'idle': { class: 'status-idle', text: 'Idle' }, 'running': { class: 'status-running', text: 'Running' }, 'approved': { class: 'status-success', text: 'Approved!' }, 'error': { class: 'status-error', text: 'Error' }, 'blocked': { class: 'status-warning', text: 'Blocked' }, 'quota_reached': { class: 'status-warning', text: 'Quota Reached' }, 'max_requests': { class: 'status-warning', text: 'Max Requests' }, 'expired_cookie': { class: 'status-error', text: 'Expired Cookie' }, 'new_account': { class: 'status-warning', text: 'New Account' } };
+            const info = statusMap[status] || statusMap['idle'];
+            badge.className = 'status-badge ' + info.class; badge.textContent = info.text;
+        }
+        function startCountdown() {
+            countdownInterval = setInterval(() => {
+                const targetTimeStr = document.getElementById('countdown').dataset.targetTime;
+                if (!targetTimeStr) return;
+                const now = new Date();
+                const beijingTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+                const targetTime = new Date(targetTimeStr);
+                let diff = targetTime - beijingTime; if (diff < 0) diff = 0;
+                const hours = Math.floor(diff / (1000 * 60 * 60));
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                document.getElementById('countdown').textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                const totalSeconds = 24 * 60 * 60;
+                const elapsedSeconds = (beijingTime.getHours() * 3600) + (beijingTime.getMinutes() * 60) + beijingTime.getSeconds();
+                const progress = (elapsedSeconds / totalSeconds) * 100;
+                document.getElementById('progressFill').style.width = progress + '%';
+            }, 1000);
+        }
+        function showAlert(elementId, type, message) {
+            const alert = document.getElementById(elementId);
+            alert.className = 'alert alert-' + type + ' show'; alert.textContent = message;
+            setTimeout(() => { alert.classList.remove('show'); }, 5000);
+        }
+        function showHelp() { document.getElementById('helpModal').style.display = 'flex'; }
+        function closeHelp() { document.getElementById('helpModal').style.display = 'none'; }
+        document.getElementById('helpModal').addEventListener('click', function(e) { if (e.target === this) closeHelp(); });
+    </script>
+</body>
+</html>"""
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000, debug=False)
